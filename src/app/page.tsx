@@ -20,7 +20,7 @@ export default async function HomePage() {
         <h1 className="text-2xl font-bold">Feira Agroecológica UFES</h1>
         <nav>
           <a href="#" className="mr-4">Início</a>
-          <a href="#">Produtos</a>
+          <a href="/cadastro.tsx">Cadastro</a>
         </nav>
       </header>
 
