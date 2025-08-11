@@ -2,7 +2,8 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image"; // Adicione a importação da imagem
+import Image from "next/image";
+import Link from 'next/link';
 
 export default function PaginaDeLogin() {
     const [email, setEmail] = useState('');
@@ -29,8 +30,8 @@ export default function PaginaDeLogin() {
             }
 
             localStorage.setItem('authToken', data.token);
-            alert('Login bem-sucedido! Redirecionando...'); 
-            router.push('/');
+            console.log('Login bem-sucedido! Redirecionando...'); 
+            router.push('/dashboard');
         } catch (error: any) {
             setErro(error.message);
         }
@@ -46,7 +47,6 @@ export default function PaginaDeLogin() {
             />
             <div className="absolute inset-0 bg-black/60 -z-10" />
 
-            {/* CARD DE LOGIN */}
             <div className="w-full max-w-md rounded-xl bg-gray-900/70 p-8 shadow-xl backdrop-blur-sm">
                 <h1 className="text-center text-3xl font-bold text-white">
                     Acessar Conta
@@ -56,7 +56,6 @@ export default function PaginaDeLogin() {
                 </p>
 
                 <form onSubmit={handleSubmit} className="mt-8 space-y-6">
-                    {/* CAMPO DE EMAIL */}
                     <div>
                         <label htmlFor="email" className="block text-sm font-medium text-gray-200">
                             Email
@@ -74,7 +73,6 @@ export default function PaginaDeLogin() {
                         </div>
                     </div>
 
-                    {/* CAMPO DE SENHA */}
                     <div>
                         <label htmlFor="senha" className="block text-sm font-medium text-gray-200">
                             Senha
@@ -92,14 +90,12 @@ export default function PaginaDeLogin() {
                         </div>
                     </div>
 
-                    {/* MENSAGEM DE ERRO */}
                     {erro && (
                         <p className="text-center text-red-400 text-sm">
                             {erro}
                         </p>
                     )}
 
-                    {/* BOTÃO DE SUBMIT */}
                     <div>
                         <button 
                             type="submit"
@@ -109,6 +105,15 @@ export default function PaginaDeLogin() {
                         </button>
                     </div>
                 </form>
+
+                <div className="mt-6 text-center text-sm text-gray-300">
+                    <p>
+                        Não tem uma conta?{' '}
+                        <Link href="/cadastro" className="font-semibold text-orange-400 hover:underline">
+                            Cadastre-se aqui
+                        </Link>
+                    </p>
+                </div>
             </div>
         </div>
     );
