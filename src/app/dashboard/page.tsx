@@ -2,146 +2,320 @@
 
 import React, { useState, useEffect } from 'react';
 
-// Interface para os dados do produto, incluindo idcategoria
+// Interfaces para os tipos de dados
 interface Produto {
     idproduto: number;
     nomeproduto: string;
     descricao: string;
     unidade: string;
-    idcategoria: number; // Adicionado para ser completo
+    idcategoria: number;
+}
+interface Feira {
+    idfeira: number;
+    nomeedicao: string;
+    datafeira: string;
+}
+interface Categoria {
+    idcategoria: number;
+    desccategoria: string;
+}
+
+interface OfertaDetalhada {
+    idoferta: number;
+    precoestimado: string;
+    descricaooferta: string;
+    nomeproduto: string;
+    descricaoproduto: string;
+    unidade: string;
+    nomeedicao: string;
+    datafeira: string;
 }
 
 export default function DashboardPage() {
-    // --- ESTADOS UNIFICADOS ---
-    // Estados para a lista de produtos
-    const [produtos, setProdutos] = useState<Produto[]>([]);
+    // Estados para as listas de dados
+    const [ofertas, setOfertas] = useState<OfertaDetalhada[]>([]);
+    const [catalogoProdutos, setCatalogoProdutos] = useState<Produto[]>([]);
+    const [feiras, setFeiras] = useState<Feira[]>([]);
+    const [categorias, setCategorias] = useState<Categoria[]>([]);
+
+    const [ofertaAbertaId, setOfertaAbertaId] = useState<number | null>(null);
+    
+    // Estados de controle da página
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-
-    // Estados para o formulário de novo produto
+    
+    // Estados para o formulário de NOVO PRODUTO
     const [novoProduto, setNovoProduto] = useState({
         nomeProduto: '',
         descricao: '',
-        unidade: '',
-        idCategoria: 1, // Valor padrão para a categoria
+        unidade: 'kg', 
+        idCategoria: '', 
     });
-    const [formError, setFormError] = useState('');
+    const [formErrorProduto, setFormErrorProduto] = useState('');
 
-    // --- LÓGICA DE BUSCA INICIAL ---
-    // Este useEffect busca a lista de produtos quando a página carrega
-    useEffect(() => {
-        const fetchProdutos = async () => {
-            try {
-                const token = localStorage.getItem('authToken');
-                if (!token) {
-                    setError('Você não está autenticado.');
-                    setLoading(false);
-                    return;
-                }
-                const response = await fetch('/api/produtos', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || 'Falha ao buscar os produtos.');
-                }
-                const data: Produto[] = await response.json();
-                setProdutos(data);
-            } catch (err: any) {
-                setError(err.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchProdutos();
-    }, []);
+    // Estados para o formulário de NOVA OFERTA
+    const [novaOferta, setNovaOferta] = useState({
+        idProduto: '',
+        idFeira: '',
+        precoEstimado: '',
+        descricao: '', 
+        fotoURL: ''
+    });
+    const [formErrorOferta, setFormErrorOferta] = useState('');
+    const [formSuccessOferta, setFormSuccessOferta] = useState('');
 
-    // --- LÓGICA DO FORMULÁRIO ---
-    // Função para atualizar o estado do formulário
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-        const { name, value } = e.target;
-        setNovoProduto(prevState => ({
-            ...prevState,
-            [name]: name === 'idCategoria' ? parseInt(value) : value,
-        }));
+    // Função única para buscar todos os dados necessários
+    const fetchData = async () => {
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) throw new Error('Você não está autenticado. Faça o login novamente.');
+            
+            const [produtosResponse, feirasResponse, catalogoResponse, categoriasResponse] = await Promise.all([
+                fetch('/api/produtos', { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch('/api/feiras'),
+                fetch('/api/catalogo-produtos'),
+                fetch('/api/categorias')
+            ]);
+
+            if (!produtosResponse.ok) throw new Error('Falha ao buscar seus produtos ofertados.');
+            if (!feirasResponse.ok) throw new Error('Falha ao buscar feiras.');
+            if (!catalogoResponse.ok) throw new Error('Falha ao buscar o catálogo de produtos.');
+            if (!categoriasResponse.ok) throw new Error('Falha ao buscar categorias.');
+
+            setOfertas(await produtosResponse.json());
+            setFeiras(await feirasResponse.json());
+            setCatalogoProdutos(await catalogoResponse.json());
+            setCategorias(await categoriasResponse.json());
+
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    // Função para enviar o novo produto para a API
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    // Handlers para o formulário de NOVO PRODUTO
+    const handleProdutoChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        setNovoProduto(prevState => ({ ...prevState, [name]: value }));
+    };
+
     const handleSubmitProduto = async (e: React.FormEvent) => {
         e.preventDefault();
-        setFormError('');
+        setFormErrorProduto('');
         const token = localStorage.getItem('authToken');
         if (!token) {
-            setFormError('Sua sessão expirou.');
+            setFormErrorProduto('Sua sessão expirou.');
             return;
         }
         try {
             const response = await fetch('/api/produtos', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify(novoProduto),
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({
+                    ...novoProduto,
+                    idCategoria: parseInt(novoProduto.idCategoria)
+                }),
             });
-            const data = await response.json();
-            if (!response.ok) {
-                throw new Error(data.message || 'Falha ao cadastrar o produto.');
-            }
-            // A MÁGICA ACONTECE AQUI:
-            // Atualizamos a lista de produtos com o novo produto que a API retornou
-            setProdutos(prevProdutos => [...prevProdutos, data]);
-            // Limpamos o formulário
-            setNovoProduto({ nomeProduto: '', descricao: '', unidade: '', idCategoria: 1 });
+            const produtoCriado: Produto = await response.json();
+            if (!response.ok) throw new Error(produtoCriado.message || 'Falha ao cadastrar o produto.');
+            
+            setCatalogoProdutos(catalogoAnterior => [...catalogoAnterior, produtoCriado]);
+            setNovoProduto({ nomeProduto: '', descricao: '', unidade: 'kg', idCategoria: '' });
             alert('Produto cadastrado com sucesso!');
         } catch (err: any) {
-            setFormError(err.message);
+            setFormErrorProduto(err.message);
         }
     };
 
-    // --- RENDERIZAÇÃO DA PÁGINA ---
-    if (loading) return <p>Carregando seus produtos...</p>;
-    if (error) return <p style={{ color: 'red' }}>Erro: {error}</p>;
+    // Handlers para o formulário de NOVA OFERTA
+    const handleOfertaChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        setNovaOferta(prevState => ({ ...prevState, [name]: value }));
+    };
+
+    const handleOfertaSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setFormErrorOferta('');
+        setFormSuccessOferta('');
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+            setFormErrorOferta('Sua sessão expirou.');
+            return;
+        }
+        try {
+            const response = await fetch('/api/ofertas', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({
+                    idProduto: parseInt(novaOferta.idProduto),
+                    idFeira: parseInt(novaOferta.idFeira),
+                    precoEstimado: parseFloat(novaOferta.precoEstimado),
+                    descricao: novaOferta.descricao,
+                    fotoURL: novaOferta.fotoURL
+                }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message || 'Falha ao criar a oferta.');
+            
+            setFormSuccessOferta('Oferta criada com sucesso!');
+            setNovaOferta({ idProduto: '', idFeira: '', precoEstimado: '', descricao: '', fotoURL: '' });
+            fetchData();
+        } catch (err: any) {
+            setFormErrorOferta(err.message);
+        }
+    };
+
+    // --- 2. NOVA FUNÇÃO PARA CONTROLAR A SANFONA (ACCORDION) ---
+    const handleToggleDetalhes = (idDaOferta: number) => {
+        // Se a oferta clicada já estiver aberta, nós a fechamos (setando para null)
+        if (ofertaAbertaId === idDaOferta) {
+            setOfertaAbertaId(null);
+        } else {
+            // Se outra oferta for clicada, nós a abrimos (setando o ID dela)
+            setOfertaAbertaId(idDaOferta);
+        }
+    };
+
+    // --- 3. NOVAS FUNÇÕES (PLACEHOLDERS) PARA EDITAR E DELETAR ---
+    const handleDeletarOferta = async (idDaOferta: number) => {
+        // A lógica da API para deletar virá aqui no futuro
+        if (confirm('Tem certeza que deseja deletar esta oferta?')) {
+            alert(`Funcionalidade de deletar a oferta ${idDaOferta} ainda não implementada.`);
+            // Exemplo de como seria a chamada da API:
+            // await fetch(`/api/ofertas/${idDaOferta}`, { method: 'DELETE' });
+            // fetchData(); // Para atualizar a lista após deletar
+        }
+    };
+
+    const handleEditarOferta = (oferta: OfertaDetalhada) => {
+        // A lógica para abrir um formulário de edição virá aqui no futuro
+        alert(`Funcionalidade de editar a oferta "${oferta.nomeproduto}" ainda não implementada.`);
+    };
+
+    if (loading) return <div className="flex justify-center items-center h-screen"><p className="text-xl">Carregando dados do produtor...</p></div>;
+    if (error) return <div className="flex justify-center items-center h-screen"><p className="text-xl text-red-500">Erro: {error}</p></div>;
 
     return (
-        <div style={{ padding: '20px', fontFamily: 'sans-serif', display: 'flex', gap: '50px' }}>
-            {/* Seção da Lista de Produtos */}
-            <div>
-                <h1>Painel do Produtor</h1>
-                <h2>Meus Produtos Ofertados</h2>
-                {produtos.length === 0 ? (
-                    <p>Você ainda não ofertou nenhum produto.</p>
-                ) : (
-                    <ul>
-                        {produtos.map(produto => (
-                            <li key={produto.idproduto}>
-                                <strong>{produto.nomeproduto}</strong> - Unidade: {produto.unidade}
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </div>
+        <div className="bg-gray-100 min-h-screen p-4 sm:p-6 lg:p-8">
+            <div className="max-w-7xl mx-auto">
+                <header className="mb-8">
+                    <h1 className="text-3xl font-bold text-gray-900">Painel do Produtor</h1>
+                    <p className="text-gray-600 mt-1">Gerencie seus produtos e ofertas para a próxima feira.</p>
+                </header>
 
-            {/* Seção do Formulário de Cadastro */}
-            <div>
-                <h2>Cadastrar Novo Produto</h2>
-                <form onSubmit={handleSubmitProduto}>
-                    {/* Campos do formulário como na resposta anterior */}
-                    <div><label>Nome do Produto</label><input type="text" name="nomeProduto" value={novoProduto.nomeProduto} onChange={handleInputChange} required /></div>
-                    <div><label>Descrição</label><textarea name="descricao" value={novoProduto.descricao} onChange={handleInputChange}></textarea></div>
-                    <div><label>Unidade</label><input type="text" name="unidade" value={novoProduto.unidade} onChange={handleInputChange} required /></div>
-                    <div>
-                        <label>Categoria</label>
-                        <select name="idCategoria" value={novoProduto.idCategoria} onChange={handleInputChange}>
-                            <option value={1}>Frutas</option>
-                            <option value={2}>Verduras</option>
-                            <option value={3}>Artesanato</option>
-                        </select>
+                <main className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    
+                    <div className="lg:col-span-2 space-y-8">
+                        {/* --- 4. ATUALIZAÇÃO PRINCIPAL NO CARD DE OFERTAS ATUAIS --- */}
+                        <div className="bg-white p-6 rounded-lg shadow-md">
+                            <h2 className="text-xl font-semibold text-gray-800 mb-4">Minhas Ofertas Atuais</h2>
+                            {ofertas.length === 0 ? (
+                                <p className="text-gray-500">Você ainda não tem nenhuma oferta ativa.</p>
+                            ) : (
+                                <ul className="space-y-3">
+                                    {ofertas.map(oferta => (
+                                        <li key={oferta.idoferta} className="bg-gray-50 rounded-md overflow-hidden transition-all duration-300">
+                                            {/* Cabeçalho da Sanfona (Sempre visível) */}
+                                            <div onClick={() => handleToggleDetalhes(oferta.idoferta)} className="p-4 flex justify-between items-center cursor-pointer hover:bg-gray-100">
+                                                <div>
+                                                    <span className="font-medium text-gray-800">{oferta.nomeproduto}</span>
+                                                    <span className="block text-sm text-gray-500">para a feira: {oferta.nomeedicao}</span>
+                                                </div>
+                                                <span className="text-sm text-orange-600 font-semibold">
+                                                    {ofertaAbertaId === oferta.idoferta ? 'Ocultar Detalhes' : 'Ver Detalhes'}
+                                                </span>
+                                            </div>
+                                            
+                                            {/* Corpo da Sanfona (Visível condicionalmente) */}
+                                            {ofertaAbertaId === oferta.idoferta && (
+                                                <div className="border-t border-gray-200 p-4 bg-white">
+                                                    <div className="space-y-2 text-sm text-gray-700 mb-4">
+                                                        <p><strong>Preço Estimado:</strong> R$ {parseFloat(oferta.precoestimado).toFixed(2).replace('.', ',')}</p>
+                                                        <p><strong>Unidade:</strong> {oferta.unidade}</p>
+                                                        <p><strong>Data da Feira:</strong> {new Date(oferta.datafeira).toLocaleDateString()}</p>
+                                                        <p><strong>Descrição da Oferta:</strong> {oferta.descricaooferta || 'N/A'}</p>
+                                                        <p><strong>Descrição do Produto:</strong> {oferta.descricaoproduto || 'N/A'}</p>
+                                                    </div>
+                                                    <div className="flex gap-4">
+                                                        <button onClick={() => handleEditarOferta(oferta)} className="bg-blue-500 text-white py-1 px-3 text-sm rounded-md hover:bg-blue-600">Editar</button>
+                                                        <button onClick={() => handleDeletarOferta(oferta.idoferta)} className="bg-red-500 text-white py-1 px-3 text-sm rounded-md hover:bg-red-600">Deletar</button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+
+                        {/* CARD PARA CRIAR NOVA OFERTA */}
+                        <div className="bg-white p-6 rounded-lg shadow-md">
+                            <h2 className="text-xl font-semibold text-gray-800 mb-4">Criar Nova Oferta</h2>
+                            <form onSubmit={handleOfertaSubmit} className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label htmlFor="idFeira" className="block text-sm font-medium text-gray-700">Feira</label>
+                                        <select id="idFeira" name="idFeira" value={novaOferta.idFeira} onChange={handleOfertaChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
+                                            <option value="" disabled>Selecione uma feira</option>
+                                            {feiras.map(feira => <option key={feira.idfeira} value={feira.idfeira}>{feira.nomeedicao}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label htmlFor="idProduto" className="block text-sm font-medium text-gray-700">Produto</label>
+                                        <select id="idProduto" name="idProduto" value={novaOferta.idProduto} onChange={handleOfertaChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
+                                            <option value="" disabled>Selecione um produto</option>
+                                            {catalogoProdutos.map(produto => <option key={produto.idproduto} value={produto.idproduto}>{produto.nomeproduto}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div><label htmlFor="precoEstimado" className="block text-sm font-medium text-gray-700">Preço Estimado (R$)</label><input type="number" id="precoEstimado" name="precoEstimado" value={novaOferta.precoEstimado} onChange={handleOfertaChange} step="0.01" required placeholder="Ex: 10.50" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500" /></div>
+                                <div><label htmlFor="descricaoOferta" className="block text-sm font-medium text-gray-700">Descrição da Oferta</label><textarea id="descricaoOferta" name="descricao" value={novaOferta.descricao} onChange={handleOfertaChange} rows={3} placeholder="Ex: Tomates frescos, colhidos hoje." className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"></textarea></div>
+                                <div><label htmlFor="fotoURL" className="block text-sm font-medium text-gray-700">URL da Foto (Opcional)</label><input type="text" id="fotoURL" name="fotoURL" value={novaOferta.fotoURL} onChange={handleOfertaChange} placeholder="https://exemplo.com/imagem.jpg" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500" /></div>
+                                <button type="submit" className="w-full justify-center rounded-md border border-transparent bg-orange-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2">Criar Oferta</button>
+                                {formSuccessOferta && <p className="text-green-600 text-sm mt-2">{formSuccessOferta}</p>}
+                                {formErrorOferta && <p className="text-red-600 text-sm mt-2">{formErrorOferta}</p>}
+                            </form>
+                        </div>
                     </div>
-                    <button type="submit">Cadastrar Produto</button>
-                    {formError && <p style={{ color: 'red' }}>{formError}</p>}
-                </form>
-            </div>
+
+                    {/* COLUNA 2: CADASTRO DE NOVO PRODUTO */}
+                    <div className="lg:col-span-1">
+                        <div className="bg-white p-6 rounded-lg shadow-md">
+                            <h2 className="text-xl font-semibold text-gray-800 mb-4">Cadastrar Novo Produto</h2>
+                            <p className="text-sm text-gray-500 mb-4">Não achou seu produto na lista? Adicione-o ao catálogo geral aqui.</p>
+                            <form onSubmit={handleSubmitProduto} className="space-y-4">
+                                <div><label htmlFor="nomeProduto" className="block text-sm font-medium text-gray-700">Nome do Produto</label><input type="text" id="nomeProduto" name="nomeProduto" value={novoProduto.nomeProduto} onChange={handleProdutoChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500" /></div>
+                                <div><label htmlFor="descricaoProduto" className="block text-sm font-medium text-gray-700">Descrição</label><textarea id="descricaoProduto" name="descricao" value={novoProduto.descricao} onChange={handleProdutoChange} rows={3} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"></textarea></div>
+                                <div>
+                                    <label htmlFor="unidade" className="block text-sm font-medium text-gray-700">Unidade</label>
+                                    <select id="unidade" name="unidade" value={novoProduto.unidade} onChange={handleProdutoChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
+                                        <option value="kg">Quilograma (kg)</option>
+                                        <option value="g">Grama (g)</option>
+                                        <option value="un">Unidade (un)</option>
+                                        <option value="dz">Dúzia (dz)</option>
+                                        <option value="L">Litro (L)</option>
+                                        <option value="ml">Mililitro (ml)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label htmlFor="idCategoria" className="block text-sm font-medium text-gray-700">Categoria</label>
+                                    <select id="idCategoria" name="idCategoria" value={novoProduto.idCategoria} onChange={handleProdutoChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500">
+                                        <option value="" disabled>Selecione uma categoria</option>
+                                        {categorias.map(categoria => <option key={categoria.idcategoria} value={categoria.idcategoria}>{categoria.desccategoria}</option>)}
+                                    </select>
+                                </div>
+                                <button type="submit" className="w-full justify-center rounded-md border border-transparent bg-gray-700 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2">Cadastrar Produto no Catálogo</button>
+                                {formErrorProduto && <p className="text-red-600 text-sm mt-2">{formErrorProduto}</p>}
+                            </form>
+                        </div>
+                    </div>
+                </main>
+            </div>           
         </div>
     );
 }
