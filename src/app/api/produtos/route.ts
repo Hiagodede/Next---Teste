@@ -33,9 +33,20 @@ export async function GET(request: Request) {
         const idProdutor = payload.id;
 
         const query = `
-            SELECT DISTINCT p.* FROM Produto p
-            JOIN Oferta o ON p.idProduto = o.idProduto
-            WHERE o.idProdutor = $1;
+            SELECT 
+                o.idOferta,
+                o.precoEstimado,
+                o.descricao AS descricaoOferta, 
+                p.nomeProduto,
+                p.descricao AS descricaoProduto,
+                p.unidade,
+                f.nomeEdicao,
+                f.dataFeira
+            FROM Oferta o
+            JOIN Produto p ON o.idProduto = p.idProduto
+            JOIN Feira f ON o.idFeira = f.idFeira
+            WHERE o.idProdutor = $1
+            ORDER BY f.dataFeira DESC;
         `;
 
         const result = await client.query(query, [idProdutor]);
@@ -97,3 +108,28 @@ export async function POST(request: Request) {
         client.release();
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
