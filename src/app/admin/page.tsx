@@ -23,6 +23,7 @@ interface Feira {
   nomeedicao: string;
   local: string;
   datafeira: string;
+  statusfeira: string;
 }
 
 interface Usuario {
@@ -180,9 +181,95 @@ function CadastroProdutorModal({ onClose, onSuccess }: { onClose: () => void, on
   );
 }
 
-// Remova este bloco duplicado fora do componente principal AdminPanel.
-// Toda a lógica de renderização de produtores já está corretamente dentro do AdminPanel.
-// Não é necessário manter este bloco fora do componente principal.
+// Modal para cadastro/edição de feira
+function FeiraModal({
+  onClose,
+  onSuccess,
+  feira,
+}: {
+  onClose: () => void;
+  onSuccess: () => void;
+  feira?: Feira | null;
+}) {
+  const [form, setForm] = useState<{
+    nomeedicao: string;
+    local: string;
+    datafeira: string;
+    statusfeira: string;
+  }>({
+    nomeedicao: feira?.nomeedicao || "",
+    local: feira?.local || "",
+    datafeira: feira?.datafeira
+      ? feira.datafeira.slice(0, 10)
+      : "",
+    statusfeira: feira?.statusfeira || "Planejada",
+  });
+  const [erro, setErro] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErro("");
+    setLoading(true);
+    try {
+      const method = feira ? "PUT" : "POST";
+      const url = feira ? `/api/feiras/${feira.idfeira}` : "/api/feiras";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Erro ao salvar feira.");
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      setErro(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-xl p-8 shadow-xl w-full max-w-md relative">
+        <button className="absolute top-2 right-2 text-gray-400 hover:text-black text-2xl" onClick={onClose}>×</button>
+        <h2 className="text-2xl font-bold mb-4">{feira ? "Editar Feira" : "Cadastrar Feira"}</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Nome da Edição</label>
+            <input name="nomeedicao" type="text" value={form.nomeedicao} onChange={handleChange} required className="w-full rounded border p-2" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Local</label>
+            <input name="local" type="text" value={form.local} onChange={handleChange} required className="w-full rounded border p-2" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Data</label>
+            <input name="datafeira" type="date" value={form.datafeira} onChange={handleChange} required className="w-full rounded border p-2" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Status</label>
+            <select name="statusfeira" value={form.statusfeira} onChange={handleChange} required className="w-full rounded border p-2">
+              <option value="Planejada">Planejada</option>
+              <option value="Ativa">Ativa</option>
+              <option value="Concluida">Concluída</option>
+              <option value="Cancelada">Cancelada</option>
+            </select>
+          </div>
+          <button type="submit" className="w-full rounded bg-orange-600 px-4 py-2 text-white font-semibold hover:bg-orange-700" disabled={loading}>
+            {loading ? "Salvando..." : feira ? "Salvar Alterações" : "Cadastrar"}
+          </button>
+        </form>
+        {erro && <p className="text-center text-red-500 mt-4">{erro}</p>}
+      </div>
+    </div>
+  );
+}
 
 export default function AdminPanel() {
   const router = useRouter();
@@ -198,6 +285,7 @@ export default function AdminPanel() {
 
   // CRUD modals
   const [modal, setModal] = useState<{ tipo: string; aberto: boolean; item: any }>({ tipo: "", aberto: false, item: null });
+  const [modalFeira, setModalFeira] = useState<{ aberto: boolean; feira: Feira | null }>({ aberto: false, feira: null });
 
   // Verifica autenticação admin
   useEffect(() => {
@@ -241,6 +329,18 @@ export default function AdminPanel() {
         }).catch((err) => setErro("Erro ao carregar dados: " + err.message));
       });
   }, [router]);
+
+  // Função para deletar feira
+  async function handleDeleteFeira(idfeira: number) {
+    if (!window.confirm("Deseja realmente excluir esta feira?")) return;
+    try {
+      const res = await fetch(`/api/feiras/${idfeira}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Erro ao excluir feira.");
+      setFeiras(f => f.filter(fei => fei.idfeira !== idfeira));
+    } catch (err: any) {
+      setErro("Erro ao excluir feira: " + err.message);
+    }
+  }
 
   // Renderização principal
   if (!autenticado) {
@@ -295,7 +395,6 @@ export default function AdminPanel() {
               </tbody>
             </table>
             <button className="bg-green-600 text-white px-4 py-2 rounded font-semibold shadow hover:bg-green-700" onClick={() => setModal({ tipo: "cadastroProdutor", aberto: true, item: null })}>Adicionar Produtor</button>
-
             {/* Modal de cadastro de produtor */}
             {modal.aberto && modal.tipo === "cadastroProdutor" && (
               <CadastroProdutorModal onClose={() => setModal({ tipo: "", aberto: false, item: null })} onSuccess={() => setModal({ tipo: "", aberto: false, item: null })} />
@@ -374,6 +473,7 @@ export default function AdminPanel() {
                   <th className="p-2">Nome</th>
                   <th className="p-2">Local</th>
                   <th className="p-2">Data</th>
+                  <th className="p-2">Status</th>
                   <th className="p-2">Ações</th>
                 </tr>
               </thead>
@@ -383,15 +483,31 @@ export default function AdminPanel() {
                     <td className="p-2 font-semibold">{feira.nomeedicao}</td>
                     <td className="p-2">{feira.local}</td>
                     <td className="p-2">{new Date(feira.datafeira).toLocaleDateString()}</td>
+                    <td className="p-2">{feira.statusfeira}</td>
                     <td className="p-2 flex gap-2">
-                      <button className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs">Editar</button>
-                      <button className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 text-xs">Excluir</button>
+                      <button className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs"
+                        onClick={() => setModalFeira({ aberto: true, feira })}>Editar</button>
+                      <button className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 text-xs"
+                        onClick={() => handleDeleteFeira(feira.idfeira)}>Excluir</button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <button className="bg-green-600 text-white px-4 py-2 rounded font-semibold shadow hover:bg-green-700">Adicionar Feira</button>
+            <button className="bg-green-600 text-white px-4 py-2 rounded font-semibold shadow hover:bg-green-700"
+              onClick={() => setModalFeira({ aberto: true, feira: null })}>Adicionar Feira</button>
+            {modalFeira.aberto && (
+              <FeiraModal
+                feira={modalFeira.feira}
+                onClose={() => setModalFeira({ aberto: false, feira: null })}
+                onSuccess={async () => {
+                  // Recarrega feiras após cadastro/edição
+                  const res = await fetch("/api/feiras");
+                  const novasFeiras = await res.json();
+                  setFeiras(novasFeiras);
+                }}
+              />
+            )}
           </div>
         )}
         {/* Ofertas */}

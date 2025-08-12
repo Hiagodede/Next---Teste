@@ -10,16 +10,15 @@ export async function GET() {
                 o.fotourl,
                 p.nomeproduto,
                 p.unidade,
+                p.idcategoria, -- ADICIONE ESTA LINHA!
                 pr.cnpj_cpf,
                 u.nomeusuario AS nomeprodutor,
-                -- prop.nome AS nomepropriedade,
                 f.local,
                 f.datafeira
             FROM oferta o
             JOIN produto p ON o.idproduto = p.idproduto
             JOIN produtor pr ON o.idprodutor = pr.idprodutor
             JOIN usuario u ON pr.idprodutor = u.idusuario
-            -- JOIN propriedade prop ON pr.idpropriedade = prop.idpropriedade
             JOIN feira f ON o.idfeira = f.idfeira
             ORDER BY o.idoferta DESC
             LIMIT 12

@@ -43,7 +43,7 @@ export default function CatalogoPage() {
   }, []);
 
   const ofertasFiltradas = categoriaSelecionada
-    ? ofertas.filter((oferta) => String(oferta.idcategoria) === categoriaSelecionada)
+    ? ofertas.filter((oferta) => oferta.idcategoria !== undefined && oferta.idcategoria.toString() === categoriaSelecionada)
     : ofertas;
 
   return (
