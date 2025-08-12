@@ -75,45 +75,60 @@ export default function PaginaDeCadastro() {
   const [erro, setErro] = useState('');
 
   // 3. Função chamada quando o formulário é enviado
-  const handleSubmit = async (e: React.FormEvent) => {
+const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMensagem('');
     setErro('');
 
-    // Limpa os campos para enviar ao backend
+    // Limpa os campos para enviar ao backend (seu código original, correto)
     const cleanTelefone = formData.telefone.replace(/\D/g, "");
     const cleanCpfCnpj = formData.cnpj_cpf.replace(/\D/g, "");
     const payload = {
-      ...formData,
-      telefone: cleanTelefone,
-      cnpj_cpf: cleanCpfCnpj,
+        ...formData,
+        telefone: cleanTelefone,
+        cnpj_cpf: cleanCpfCnpj,
     };
 
     try {
-      const response = await fetch('/api/cadastro', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Algo deu errado ao tentar cadastrar.');
-      }
-      setMensagem(data.message || 'Cadastro realizado com sucesso!');
-      setFormData({
-        nomeUsuario: '',
-        email: '',
-        senha: '',
-        telefone: '',
-        cnpj_cpf: '',
-      });
-      router.push('/');
+        // --- Passo 1: Tenta cadastrar o usuário ---
+        const registerResponse = await fetch('/api/cadastro', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+
+        const registerData = await registerResponse.json();
+        if (!registerResponse.ok) {
+            throw new Error(registerData.message || 'Falha no cadastro.');
+        }
+
+        // --- Passo 2: Se o cadastro deu certo, tenta fazer o login ---
+        const loginResponse = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: formData.email, // Usa o email do formulário
+                senha: formData.senha, // Usa a senha do formulário
+            }),
+        });
+
+        const loginData = await loginResponse.json();
+        if (!loginResponse.ok) {
+            // Se o login falhar por algum motivo, avisa que o cadastro deu certo
+            // mas que o login precisa ser feito manualmente.
+            setMensagem('Cadastro realizado com sucesso! Por favor, faça o login.');
+            router.push('/login'); // Leva para a página de login
+            return;
+        }
+
+        // --- Passo 3: Se o login deu certo, salva o token e redireciona ---
+        localStorage.setItem('authToken', loginData.token);
+        router.push('/dashboard'); // AGORA SIM, redireciona para o dashboard!
+
     } catch (error: any) {
-      setErro(error.message);
+        setErro(error.message);
     }
-  };
+};
 
   // Estilos para o modal igual ao login
   const inputClass = "w-full rounded-md border-gray-600 bg-gray-800 p-3 text-white shadow-sm focus:border-orange-500 focus:ring focus:ring-orange-500 focus:ring-opacity-50 mb-4";
