@@ -7,7 +7,6 @@ const pool = new Pool({
   password: process.env.PG_PASSWORD,
   port: Number(process.env.PG_PORT),
 });
-
 // Busca produtos em destaque para a feira mais recente
 export async function getProdutosDestaque() {
   const query = `
@@ -50,3 +49,13 @@ export async function getCategorias() {
 }
 
 export default pool;
+
+// Função para testar a conexão com o banco de dados
+export async function testarConexaoBanco() {
+  try {
+    await pool.query('SELECT 1');
+    return { sucesso: true, mensagem: 'Conexão bem-sucedida!' };
+  } catch (error) {
+    return { sucesso: false, mensagem: error.message };
+  }
+}

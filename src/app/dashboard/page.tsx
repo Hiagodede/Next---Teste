@@ -21,6 +21,7 @@ interface Categoria {
 }
 
 interface OfertaDetalhada {
+    fotoURL: string;
     idoferta: number;
     precoestimado: string;
     descricaooferta: string;
@@ -55,7 +56,7 @@ export default function DashboardPage() {
 
     // Estados para o formulário de NOVA OFERTA
     const [novaOferta, setNovaOferta] = useState({
-        idProduto: '',
+        idProduto: '', // Adicionado idProduto
         idFeira: '',
         precoEstimado: '',
         descricao: '', 
@@ -78,9 +79,6 @@ export default function DashboardPage() {
             ]);
 
             if (!produtosResponse.ok) throw new Error('Falha ao buscar seus produtos ofertados.');
-            if (!feirasResponse.ok) throw new Error('Falha ao buscar feiras.');
-            if (!catalogoResponse.ok) throw new Error('Falha ao buscar o catálogo de produtos.');
-            if (!categoriasResponse.ok) throw new Error('Falha ao buscar categorias.');
 
             setOfertas(await produtosResponse.json());
             setFeiras(await feirasResponse.json());
@@ -121,10 +119,10 @@ export default function DashboardPage() {
                     idCategoria: parseInt(novoProduto.idCategoria)
                 }),
             });
-            const produtoCriado: Produto = await response.json();
-            if (!response.ok) throw new Error(produtoCriado.message || 'Falha ao cadastrar o produto.');
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message || 'Falha ao cadastrar o produto.');
             
-            setCatalogoProdutos(catalogoAnterior => [...catalogoAnterior, produtoCriado]);
+            setCatalogoProdutos(catalogoAnterior => [...catalogoAnterior, data]);
             setNovoProduto({ nomeProduto: '', descricao: '', unidade: 'kg', idCategoria: '' });
             alert('Produto cadastrado com sucesso!');
         } catch (err: any) {
@@ -182,19 +180,62 @@ export default function DashboardPage() {
     };
 
     // --- 3. NOVAS FUNÇÕES (PLACEHOLDERS) PARA EDITAR E DELETAR ---
+    // Handler para deletar oferta
     const handleDeletarOferta = async (idDaOferta: number) => {
-        // A lógica da API para deletar virá aqui no futuro
         if (confirm('Tem certeza que deseja deletar esta oferta?')) {
-            alert(`Funcionalidade de deletar a oferta ${idDaOferta} ainda não implementada.`);
-            // Exemplo de como seria a chamada da API:
-            // await fetch(`/api/ofertas/${idDaOferta}`, { method: 'DELETE' });
-            // fetchData(); // Para atualizar a lista após deletar
+            try {
+                const response = await fetch(`/api/ofertas?id=${idDaOferta}`, { method: 'DELETE' });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message || 'Erro ao deletar oferta.');
+                alert('Oferta deletada com sucesso!');
+                fetchData();
+            } catch (err: any) {
+                alert(err.message);
+            }
         }
     };
 
+    // Modal de edição de oferta
+    const [modalEditar, setModalEditar] = useState<{ aberto: boolean; oferta: OfertaDetalhada | null }>({ aberto: false, oferta: null });
+    const [editOferta, setEditOferta] = useState({ precoEstimado: '', descricao: '', fotoURL: '' });
+    const [editError, setEditError] = useState('');
+
     const handleEditarOferta = (oferta: OfertaDetalhada) => {
-        // A lógica para abrir um formulário de edição virá aqui no futuro
-        alert(`Funcionalidade de editar a oferta "${oferta.nomeproduto}" ainda não implementada.`);
+        setModalEditar({ aberto: true, oferta });
+        setEditOferta({
+            precoEstimado: oferta.precoestimado,
+            descricao: oferta.descricaooferta || '',
+            fotoURL: oferta.fotoURL || ''
+        });
+        setEditError('');
+    };
+
+    const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        setEditOferta(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleEditSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!modalEditar.oferta) return;
+        try {
+            const response = await fetch('/api/ofertas', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    idOferta: modalEditar.oferta.idoferta,
+                    precoEstimado: editOferta.precoEstimado,
+                    descricao: editOferta.descricao,
+                    fotoURL: editOferta.fotoURL
+                })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message || 'Erro ao editar oferta.');
+            setModalEditar({ aberto: false, oferta: null });
+            fetchData();
+        } catch (err: any) {
+            setEditError(err.message);
+        }
     };
 
     if (loading) return <div className="flex justify-center items-center h-screen"><p className="text-xl">Carregando dados do produtor...</p></div>;
@@ -202,6 +243,33 @@ export default function DashboardPage() {
 
     return (
         <div className="bg-gray-100 min-h-screen p-4 sm:p-6 lg:p-8">
+            {/* Modal de edição de oferta */}
+            {modalEditar.aberto && modalEditar.oferta && (
+                <div className="fixed inset-0 flex items-center justify-center z-50" style={{background: "rgba(0,0,0,0.15)", backdropFilter: "blur(2px)"}}>
+                    <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+                        <h2 className="text-xl font-semibold mb-4">Editar Oferta</h2>
+                        <form onSubmit={handleEditSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Preço Estimado (R$)</label>
+                                <input type="number" name="precoEstimado" value={editOferta.precoEstimado} onChange={handleEditChange} step="0.01" required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Descrição da Oferta</label>
+                                <textarea name="descricao" value={editOferta.descricao} onChange={handleEditChange} rows={3} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></textarea>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">URL da Foto</label>
+                                <input type="text" name="fotoURL" value={editOferta.fotoURL} onChange={handleEditChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                            </div>
+                            {editError && <p className="text-red-600 text-sm">{editError}</p>}
+                            <div className="flex gap-4 mt-4">
+                                <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Salvar</button>
+                                <button type="button" className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500" onClick={() => setModalEditar({ aberto: false, oferta: null })}>Cancelar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
             <div className="max-w-7xl mx-auto">
                 <header className="mb-8">
                     <h1 className="text-3xl font-bold text-gray-900">Painel do Produtor</h1>
@@ -209,9 +277,8 @@ export default function DashboardPage() {
                 </header>
 
                 <main className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    
                     <div className="lg:col-span-2 space-y-8">
-                        {/* --- 4. ATUALIZAÇÃO PRINCIPAL NO CARD DE OFERTAS ATUAIS --- */}
+                        {/* Ofertas Atuais */}
                         <div className="bg-white p-6 rounded-lg shadow-md">
                             <h2 className="text-xl font-semibold text-gray-800 mb-4">Minhas Ofertas Atuais</h2>
                             {ofertas.length === 0 ? (
@@ -230,7 +297,6 @@ export default function DashboardPage() {
                                                     {ofertaAbertaId === oferta.idoferta ? 'Ocultar Detalhes' : 'Ver Detalhes'}
                                                 </span>
                                             </div>
-                                            
                                             {/* Corpo da Sanfona (Visível condicionalmente) */}
                                             {ofertaAbertaId === oferta.idoferta && (
                                                 <div className="border-t border-gray-200 p-4 bg-white">
@@ -238,8 +304,6 @@ export default function DashboardPage() {
                                                         <p><strong>Preço Estimado:</strong> R$ {parseFloat(oferta.precoestimado).toFixed(2).replace('.', ',')}</p>
                                                         <p><strong>Unidade:</strong> {oferta.unidade}</p>
                                                         <p><strong>Data da Feira:</strong> {new Date(oferta.datafeira).toLocaleDateString()}</p>
-                                                        <p><strong>Descrição da Oferta:</strong> {oferta.descricaooferta || 'N/A'}</p>
-                                                        <p><strong>Descrição do Produto:</strong> {oferta.descricaoproduto || 'N/A'}</p>
                                                     </div>
                                                     <div className="flex gap-4">
                                                         <button onClick={() => handleEditarOferta(oferta)} className="bg-blue-500 text-white py-1 px-3 text-sm rounded-md hover:bg-blue-600">Editar</button>

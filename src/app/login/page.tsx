@@ -13,7 +13,7 @@ export default function PaginaDeLogin() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setErro(''); 
+        setErro('');
         try {
             const response = await fetch('/api/login', {
                 method: 'POST',
@@ -30,8 +30,19 @@ export default function PaginaDeLogin() {
             }
 
             localStorage.setItem('authToken', data.token);
-            console.log('Login bem-sucedido! Redirecionando...'); 
-            router.push('/dashboard');
+            // Decodifica o payload do JWT para obter o perfil
+            const tokenParts = data.token.split('.');
+            if (tokenParts.length !== 3) {
+                throw new Error('Token JWT inválido.');
+            }
+            const payload = JSON.parse(atob(tokenParts[1]));
+            const perfil = payload.perfil;
+            console.log('Perfil decodificado:', perfil);
+            if (perfil === 'Administrador') {
+                router.push('/admin');
+            } else {
+                router.push('/dashboard');
+            }
         } catch (error: any) {
             setErro(error.message);
         }

@@ -1,3 +1,37 @@
+// Buscar ofertas detalhadas para o catálogo da home
+export async function GET() {
+    const client = await pool.connect();
+    try {
+        const query = `
+            SELECT 
+                o.idoferta,
+                o.precoestimado,
+                o.descricao,
+                o.fotourl,
+                p.nomeproduto,
+                p.unidade,
+                pr.cnpj_cpf,
+                u.nomeusuario AS nomeprodutor,
+                -- prop.nome AS nomepropriedade,
+                f.local,
+                f.datafeira
+            FROM oferta o
+            JOIN produto p ON o.idproduto = p.idproduto
+            JOIN produtor pr ON o.idprodutor = pr.idprodutor
+            JOIN usuario u ON pr.idprodutor = u.idusuario
+            -- JOIN propriedade prop ON pr.idpropriedade = prop.idpropriedade
+            JOIN feira f ON o.idfeira = f.idfeira
+            ORDER BY o.idoferta DESC
+            LIMIT 12
+        `;
+        const result = await client.query(query);
+        return NextResponse.json(result.rows);
+    } catch (error) {
+        return NextResponse.json({ message: 'Erro ao buscar ofertas.' }, { status: 500 });
+    } finally {
+        client.release();
+    }
+}
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import jwt from 'jsonwebtoken';
@@ -55,7 +89,46 @@ export async function POST(request: Request) {
     }
 }
 
-export async function DELETE( request: Request) {
 
+// Deletar oferta
+export async function DELETE(request: Request) {
+    const client = await pool.connect();
+    try {
+        const url = new URL(request.url);
+        const idOferta = url.searchParams.get('id');
+        if (!idOferta) {
+            return NextResponse.json({ message: 'ID da oferta não fornecido.' }, { status: 400 });
+        }
+        await client.query('DELETE FROM Oferta WHERE idOferta = $1', [idOferta]);
+        return NextResponse.json({ message: 'Oferta deletada com sucesso.' });
+    } catch (error) {
+        console.error('Erro ao deletar oferta:', error);
+        return NextResponse.json({ message: 'Erro interno ao deletar oferta.' }, { status: 500 });
+    } finally {
+        client.release();
+    }
 }
+
+// Editar oferta
+export async function PATCH(request: Request) {
+    const client = await pool.connect();
+    try {
+        const { idOferta, precoEstimado, descricao, fotoURL } = await request.json();
+        if (!idOferta) {
+            return NextResponse.json({ message: 'ID da oferta não fornecido.' }, { status: 400 });
+        }
+        await client.query(
+            'UPDATE Oferta SET precoEstimado = $1, descricao = $2, fotoURL = $3 WHERE idOferta = $4',
+            [precoEstimado, descricao, fotoURL, idOferta]
+        );
+        return NextResponse.json({ message: 'Oferta editada com sucesso.' });
+    } catch (error) {
+        console.error('Erro ao editar oferta:', error);
+        return NextResponse.json({ message: 'Erro interno ao editar oferta.' }, { status: 500 });
+    } finally {
+        client.release();
+    }
+}
+
+// Buscar ofertas
 
