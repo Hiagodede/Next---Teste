@@ -54,3 +54,8 @@ export async function POST(request: Request) {
         client.release();
     }
 }
+
+export async function DELETE( request: Request) {
+
+}
+
